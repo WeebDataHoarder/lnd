@@ -184,6 +184,12 @@ func Main(cfg *Config, lisCfg ListenerCfg, implCfg *ImplementationCfg,
 		network,
 	)
 
+	if cfg.DefaultDeliveryAddress != "" {
+		ltndLog.Infof("Default Delivery Address: %v",
+			cfg.DefaultDeliveryAddress,
+		)
+	}
+
 	// Enable http profiling server if requested.
 	if cfg.Profile != "" {
 		go func() {

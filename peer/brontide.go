@@ -5,6 +5,7 @@ import (
 	"container/list"
 	"errors"
 	"fmt"
+	"github.com/btcsuite/btcutil"
 	"net"
 	"sync"
 	"sync/atomic"
@@ -144,6 +145,8 @@ type Config struct {
 
 	// Inbound indicates whether or not the peer is an inbound peer.
 	Inbound bool
+
+	DefaultDeliveryAddress string
 
 	// Features is the set of features that we advertise to the remote party.
 	Features *lnwire.FeatureVector
@@ -2157,6 +2160,19 @@ func (p *Brontide) ChannelSnapshots() []*channeldb.ChannelSnapshot {
 // genDeliveryScript returns a new script to be used to send our funds to in
 // the case of a cooperative channel close negotiation.
 func (p *Brontide) genDeliveryScript() ([]byte, error) {
+	if p.cfg.DefaultDeliveryAddress != "" {
+		deliveryAddr, err := btcutil.DecodeAddress(
+			p.cfg.DefaultDeliveryAddress, &(p.cfg.Wallet.Cfg.NetParams),
+		)
+		if err != nil {
+			return nil, err
+		}
+		peerLog.Infof("Default Delivery addr for channel close: %v",
+			deliveryAddr)
+
+		return txscript.PayToAddrScript(deliveryAddr)
+	}
+
 	deliveryAddr, err := p.cfg.Wallet.NewAddress(
 		lnwallet.WitnessPubKey, false, lnwallet.DefaultAccountName,
 	)

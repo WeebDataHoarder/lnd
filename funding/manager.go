@@ -455,6 +455,9 @@ type Config struct {
 	// is enabled.
 	EnableUpfrontShutdown bool
 
+	// Sets default delivery address for Upfront Shutdown cases
+	DefaultDeliveryAddress string
+
 	// RegisteredChains keeps track of all chains that have been registered
 	// with the daemon.
 	RegisteredChains *chainreg.ChainRegistry
@@ -1366,6 +1369,16 @@ func (f *Manager) handleFundingOpen(peer lnpeer.Peer,
 	shutdown, err := getUpfrontShutdownScript(
 		f.cfg.EnableUpfrontShutdown, peer, acceptorResp.UpfrontShutdown,
 		func() (lnwire.DeliveryAddress, error) {
+			if f.cfg.DefaultDeliveryAddress != "" {
+				addr, err := btcutil.DecodeAddress(
+					f.cfg.DefaultDeliveryAddress, &(f.cfg.Wallet.Cfg.NetParams),
+				)
+				if err != nil {
+					return nil, err
+				}
+				return txscript.PayToAddrScript(addr)
+			}
+
 			addr, err := f.cfg.Wallet.NewAddress(
 				lnwallet.WitnessPubKey, false,
 				lnwallet.DefaultAccountName,
@@ -3249,6 +3262,16 @@ func (f *Manager) handleInitFundingMsg(msg *InitFundingMsg) {
 		f.cfg.EnableUpfrontShutdown, msg.Peer,
 		msg.ShutdownScript,
 		func() (lnwire.DeliveryAddress, error) {
+			if f.cfg.DefaultDeliveryAddress != "" {
+				addr, err := btcutil.DecodeAddress(
+					f.cfg.DefaultDeliveryAddress, &(f.cfg.Wallet.Cfg.NetParams),
+				)
+				if err != nil {
+					return nil, err
+				}
+				return txscript.PayToAddrScript(addr)
+			}
+
 			addr, err := f.cfg.Wallet.NewAddress(
 				lnwallet.WitnessPubKey, false,
 				lnwallet.DefaultAccountName,

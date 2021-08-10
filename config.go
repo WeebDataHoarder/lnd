@@ -365,6 +365,7 @@ type Config struct {
 	net tor.Net
 
 	EnableUpfrontShutdown bool `long:"enable-upfront-shutdown" description:"If true, option upfront shutdown script will be enabled. If peers that we open channels with support this feature, we will automatically set the script to which cooperative closes should be paid out to on channel open. This offers the partial protection of a channel peer disconnecting from us if cooperative close is attempted with a different script."`
+	DefaultDeliveryAddress string `long:"default-delivery-address" description:"If not empty, this will be used as the default delivery address on close (unless overriden) on co-op channel close. If enable-upfront-shutdown and a close_address is not set on open, this will also be used."`
 
 	AcceptKeySend bool `long:"accept-keysend" description:"If true, spontaneous payments through keysend will be accepted. [experimental]"`
 
@@ -601,6 +602,7 @@ func DefaultConfig() Config {
 		RemoteSigner: &lncfg.RemoteSigner{
 			Timeout: lncfg.DefaultRemoteSignerRPCTimeout,
 		},
+		DefaultDeliveryAddress:  "",
 	}
 }
 
@@ -1286,6 +1288,18 @@ func ValidateConfig(cfg Config, interceptor signal.Interceptor, fileParser,
 	}
 	if cfg.Autopilot.MaxChannelSize > int64(MaxFundingAmount) {
 		cfg.Autopilot.MaxChannelSize = int64(MaxFundingAmount)
+	}
+
+	if cfg.DefaultDeliveryAddress != "" {
+		_, err := btcutil.DecodeAddress(
+			cfg.DefaultDeliveryAddress, cfg.ActiveNetParams.Params,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("invalid default delivery address: %s"+
+				", %v",
+				cfg.DefaultDeliveryAddress, err)
+			return nil, err
+		}
 	}
 
 	// Validate profile port or host:port.

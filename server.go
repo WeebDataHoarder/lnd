@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/btcsuite/btcd/btcec"
+	"github.com/btcsuite/btcd/chaincfg"
 	"github.com/btcsuite/btcd/chaincfg/chainhash"
 	"github.com/btcsuite/btcd/connmgr"
 	"github.com/btcsuite/btcd/txscript"
@@ -985,7 +986,7 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 
 	s.sweeper = sweep.New(&sweep.UtxoSweeperConfig{
 		FeeEstimator:   cc.FeeEstimator,
-		GenSweepScript: newSweepPkScriptGen(cc.Wallet),
+		GenSweepScript: newSweepPkScriptGenWithDefault(cc.Wallet, cfg.DefaultDeliveryAddress, cfg.ActiveNetParams.Params),
 		Signer:         cc.Wallet.Cfg.Signer,
 		Wallet:         cc.Wallet,
 		NewBatchTimer: func() <-chan time.Time {
@@ -1031,7 +1032,7 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 		CloseLink:          closeLink,
 		DB:                 s.chanStateDB,
 		Estimator:          s.cc.FeeEstimator,
-		GenSweepScript:     newSweepPkScriptGen(cc.Wallet),
+		GenSweepScript:     newSweepPkScriptGenWithDefault(cc.Wallet, cfg.DefaultDeliveryAddress, cfg.ActiveNetParams.Params),
 		Notifier:           cc.ChainNotifier,
 		PublishTransaction: cc.Wallet.PublishTransaction,
 		ContractBreaches:   contractBreaches,
@@ -1045,7 +1046,7 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 		ChainHash:              *s.cfg.ActiveNetParams.GenesisHash,
 		IncomingBroadcastDelta: lncfg.DefaultIncomingBroadcastDelta,
 		OutgoingBroadcastDelta: lncfg.DefaultOutgoingBroadcastDelta,
-		NewSweepAddr:           newSweepPkScriptGen(cc.Wallet),
+		NewSweepAddr:           newSweepPkScriptGenWithDefault(cc.Wallet, cfg.DefaultDeliveryAddress, cfg.ActiveNetParams.Params),
 		PublishTx:              cc.Wallet.PublishTransaction,
 		DeliverResolutionMsg: func(msgs ...contractcourt.ResolutionMsg) error {
 			for _, msg := range msgs {
@@ -1340,6 +1341,7 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 		OpenChannelPredicate:          chanPredicate,
 		NotifyPendingOpenChannelEvent: s.channelNotifier.NotifyPendingOpenChannelEvent,
 		EnableUpfrontShutdown:         cfg.EnableUpfrontShutdown,
+		DefaultDeliveryAddress:        cfg.DefaultDeliveryAddress,
 		RegisteredChains:              cfg.registeredChains,
 		MaxAnchorsCommitFeeRate: chainfee.SatPerKVByte(
 			s.cfg.MaxCommitFeeRateAnchors * 1000).FeePerKWeight(),
@@ -1416,7 +1418,7 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 
 		s.towerClient, err = wtclient.New(&wtclient.Config{
 			Signer:         cc.Wallet.Cfg.Signer,
-			NewAddress:     newSweepPkScriptGen(cc.Wallet),
+			NewAddress:     newSweepPkScriptGenWithDefault(cc.Wallet, cfg.DefaultDeliveryAddress, cfg.ActiveNetParams.Params),
 			SecretKeyRing:  s.cc.KeyRing,
 			Dial:           cfg.net.Dial,
 			AuthDial:       authDial,
@@ -1439,7 +1441,7 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 
 		s.anchorTowerClient, err = wtclient.New(&wtclient.Config{
 			Signer:         cc.Wallet.Cfg.Signer,
-			NewAddress:     newSweepPkScriptGen(cc.Wallet),
+			NewAddress:     newSweepPkScriptGenWithDefault(cc.Wallet, cfg.DefaultDeliveryAddress, cfg.ActiveNetParams.Params),
 			SecretKeyRing:  s.cc.KeyRing,
 			Dial:           cfg.net.Dial,
 			AuthDial:       authDial,
@@ -3468,6 +3470,7 @@ func (s *server) peerConnected(conn net.Conn, connReq *connmgr.ConnReq,
 		ConnReq:                 connReq,
 		Addr:                    peerAddr,
 		Inbound:                 inbound,
+		DefaultDeliveryAddress:  s.cfg.DefaultDeliveryAddress,
 		Features:                initFeatures,
 		LegacyFeatures:          legacyFeatures,
 		OutgoingCltvRejectDelta: lncfg.DefaultOutgoingCltvRejectDelta,
@@ -4325,6 +4328,36 @@ func (s *server) SendCustomMessage(peerPub [33]byte, msgType lnwire.MessageType,
 	// Send the message as low-priority. For now we assume that all
 	// application-defined message are low priority.
 	return peer.SendMessageLazy(true, msg)
+}
+
+
+// newSweepPkScriptGenWithDefault creates closure that generates a new public key script
+// which should be used to sweep any funds into the on-chain wallet.
+// Specifically, the script generated is a version 0, pay-to-witness-pubkey-hash, unless there is a default
+// (p2wkh) output.
+func newSweepPkScriptGenWithDefault(
+	wallet lnwallet.WalletController, defaultDeliveryAddress string, netParams *chaincfg.Params) func() ([]byte, error) {
+
+	return func() ([]byte, error) {
+		if defaultDeliveryAddress != "" {
+			sweepAddr, err := btcutil.DecodeAddress(
+				defaultDeliveryAddress, netParams,
+			)
+			if err != nil {
+				return nil, err
+			}
+			return txscript.PayToAddrScript(sweepAddr)
+		}
+
+		sweepAddr, err := wallet.NewAddress(
+			lnwallet.WitnessPubKey, false, lnwallet.DefaultAccountName,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		return txscript.PayToAddrScript(sweepAddr)
+	}
 }
 
 // newSweepPkScriptGen creates closure that generates a new public key script

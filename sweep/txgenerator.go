@@ -327,7 +327,7 @@ func getWeightEstimate(inputs []input.Input, outputs []*wire.TxOut,
 	// change output to the weight estimate regardless, since the estimated
 	// fee will just be subtracted from this already dust output, and
 	// trimmed.
-	weightEstimate.addP2WKHOutput()
+	weightEstimate.addP2WSHOutput()
 
 	// For each output, use its witness type to determine the estimate
 	// weight of its witness, and add it to the proper set of spendable
