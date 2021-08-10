@@ -60,6 +60,9 @@ const (
 	// a channel's commitment fee to be of its balance. This only applies to
 	// the initiator of the channel.
 	DefaultMaxLinkFeeAllocation float64 = 0.5
+
+	// DefaultMaxLinkFeeReserve is the reserve enforced on remote peer
+	DefaultMaxLinkFeeReserve float64 = 0.01
 )
 
 // ForwardingPolicy describes the set of constraints that a given ChannelLink

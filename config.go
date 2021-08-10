@@ -354,6 +354,8 @@ type Config struct {
 
 	MaxOutgoingCltvExpiry uint32 `long:"max-cltv-expiry" description:"The maximum number of blocks funds could be locked up for when forwarding payments."`
 
+	ChannelFeeReserve float64 `long:"channel-fee-reserve" description:"The percentage of total funds that will be reserved on the remote side. Valid values are within [0, 1]."`
+
 	MaxChannelFeeAllocation float64 `long:"max-channel-fee-allocation" description:"The maximum percentage of total funds that can be allocated to a channel's commitment fee. This only applies for the initiator of the channel. Valid values are within [0.1, 1]."`
 
 	MaxCommitFeeRateAnchors uint64 `long:"max-commit-fee-rate-anchors" description:"The maximum fee rate in sat/vbyte that will be used for commitments of channels of the anchors type. Must be large enough to ensure transaction propagation"`
@@ -583,6 +585,7 @@ func DefaultConfig() Config {
 			HoldExpiryDelta: lncfg.DefaultHoldInvoiceExpiryDelta,
 		},
 		MaxOutgoingCltvExpiry:   htlcswitch.DefaultMaxOutgoingCltvExpiry,
+		ChannelFeeReserve:       htlcswitch.DefaultMaxLinkFeeReserve,
 		MaxChannelFeeAllocation: htlcswitch.DefaultMaxLinkFeeAllocation,
 		MaxCommitFeeRateAnchors: lnwallet.DefaultAnchorsCommitMaxFeeRateSatPerVByte,
 		DustThreshold:           uint64(htlcswitch.DefaultDustThreshold.ToSatoshis()),
@@ -899,6 +902,13 @@ func ValidateConfig(cfg Config, interceptor signal.Interceptor, fileParser,
 			"non-wumbo channel size %v", cfg.MaxChanSize,
 			MaxFundingAmount,
 		)
+	}
+
+	// Ensure a valid max channel fee allocation was set.
+	if cfg.ChannelFeeReserve < 0 || cfg.ChannelFeeReserve > 1 {
+		return nil, fmt.Errorf("invalid channel fee reserve: "+
+			"%v, must be within [0, 1]",
+			cfg.ChannelFeeReserve)
 	}
 
 	// Ensure a valid max channel fee allocation was set.

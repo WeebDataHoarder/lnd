@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"image/color"
+	"math"
 	"math/big"
 	prand "math/rand"
 	"net"
@@ -1301,11 +1302,11 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 			dustLimit btcutil.Amount) btcutil.Amount {
 
 			// By default, we'll require the remote peer to maintain
-			// at least 1% of the total channel capacity at all
+			// at least (by default) 1% of the total channel capacity at all
 			// times. If this value ends up dipping below the dust
 			// limit, then we'll use the dust limit itself as the
 			// reserve as required by BOLT #2.
-			reserve := chanAmt / 100
+			reserve := chanAmt / btcutil.Amount(math.Round(1/cfg.ChannelFeeReserve))
 			if reserve < dustLimit {
 				reserve = dustLimit
 			}
@@ -1316,7 +1317,7 @@ func newServer(cfg *Config, listenAddrs []net.Addr,
 			// By default, we'll allow the remote peer to fully
 			// utilize the full bandwidth of the channel, minus our
 			// required reserve.
-			reserve := lnwire.NewMSatFromSatoshis(chanAmt / 100)
+			reserve := lnwire.NewMSatFromSatoshis(chanAmt / btcutil.Amount(math.Round(1/cfg.ChannelFeeReserve)))
 			return lnwire.NewMSatFromSatoshis(chanAmt) - reserve
 		},
 		RequiredRemoteMaxHTLCs: func(chanAmt btcutil.Amount) uint16 {
